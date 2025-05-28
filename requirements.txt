@@ -1,0 +1,23 @@
+flask==2.3.3
+twilio==8.10.0
+# openai-whisper==20231117
+torch==2.7.0
+torchaudio==2.7.0
+transformers==4.35.0
+accelerate==0.24.0
+scipy==1.11.4
+numpy==1.24.3
+soundfile==0.12.1
+librosa==0.10.1
+requests==2.31.0
+python-dotenv==1.0.0
+pydub==0.25.1
+TTS==0.20.6
+elevenlabs==0.2.26
+speechrecognition==3.10.0
+pyaudio==0.2.11
+websockets==11.0.3
+asyncio-mqtt==0.16.1
+redis==5.0.1
+celery==5.3.4
+gunicorn==21.2.0 
