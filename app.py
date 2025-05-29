@@ -35,12 +35,10 @@ def voice_process(call_sid):
             speech_result = stt_handler.transcribe_audio(audio_data)
     if not speech_result:
         speech_result = ''
-    # Generate AI response
+    # Generate AI response using our enhanced LLM handler
     ai_response = llm_handler.generate_response(speech_result, call_sid)
-    # Synthesize voice using ElevenLabs
-    audio_bytes = elevenlabs_handler.text_to_speech(ai_response)
-    # For now, fallback to <Say> for demo
-    response = twilio_handler.process_speech_input(call_sid, ai_response)
+    # Use the new Twilio handler method to create the response
+    response = twilio_handler.create_ai_response(call_sid, speech_result, ai_response)
     return Response(str(response), mimetype='text/xml')
 
 @app.route('/voice/continue/<call_sid>', methods=['POST', 'GET'])

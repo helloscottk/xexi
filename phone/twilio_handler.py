@@ -283,4 +283,36 @@ class TwilioPhoneHandler:
             logger.error(f"Error playing audio response: {e}")
             response = VoiceResponse()
             response.say("Sorry, there was an audio issue.", voice='alice')
-            return response 
+            return response
+    
+    def create_ai_response(self, call_sid: str, user_speech: str, ai_response: str) -> VoiceResponse:
+        """Create a Twilio VoiceResponse using a pre-generated AI response"""
+        response = VoiceResponse()
+        # Log both user speech and AI response
+        logger.info(f"User speech from {call_sid}: {user_speech}")
+        logger.info(f"AI response for {call_sid}: {ai_response}")
+        # Store in call history
+        if call_sid in self.active_calls:
+            self.active_calls[call_sid]['conversation_history'].append({
+                'type': 'user',
+                'content': user_speech
+            })
+            self.active_calls[call_sid]['conversation_history'].append({
+                'type': 'ai',
+                'content': ai_response
+            })
+        # Create response with gather for next input
+        gather = Gather(
+            input='speech',
+            action=f'/voice/process/{call_sid}',
+            method='POST',
+            speech_timeout='auto',
+            language='en-US',
+            enhanced=True
+        )
+        gather.say(ai_response, voice='alice', language='en-US')
+        response.append(gather)
+        # Fallback
+        response.say("Are you still there? I want to keep talking with you...", voice='alice')
+        response.redirect(f'/voice/continue/{call_sid}')
+        return response 
