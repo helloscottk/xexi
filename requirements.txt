@@ -12,11 +12,10 @@ librosa==0.10.1
 requests==2.31.0
 python-dotenv==1.0.0
 pydub==0.25.1
-TTS==0.20.6
 elevenlabs==0.2.26
 speechrecognition==3.10.0
 websockets==11.0.3
 asyncio-mqtt==0.16.1
 redis==5.0.1
 celery==5.3.4
-gunicorn==21.2.0 
+gunicorn==21.2.0
