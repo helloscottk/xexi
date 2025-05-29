@@ -3,6 +3,8 @@ import json
 import logging
 from typing import List, Dict, Optional
 from config import Config
+import random
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +18,8 @@ class NSFWLLMHandler:
         self.conversation_history = {}
         self.personality = self.config.DEFAULT_PERSONALITY
         self._load_mixtral()
+        # Track escalation state and last AI response for each call
+        self.call_state = {}  # call_id: {'level': 0, 'last_ai': ''}
     
     def initialize_model(self, model_name: str = None):
         """Initialize the specified LLM model (API only)"""
@@ -44,18 +48,6 @@ class NSFWLLMHandler:
     def _load_fallback(self):
         """Fallback to a simple response system"""
         self.model_type = "fallback"
-        self.fallback_responses = [
-            "Mmm, tell me more about what you're thinking...",
-            "That sounds so exciting... I love hearing your voice.",
-            "You're making me feel so warm and tingly...",
-            "I wish I could be there with you right now...",
-            "Your voice is so sexy, it's driving me wild...",
-            "I'm getting so turned on just listening to you...",
-            "Tell me your deepest desires, I want to hear everything...",
-            "You know exactly what to say to make me melt...",
-            "I can't stop thinking about what we could do together...",
-            "Your words are making my heart race..."
-        ]
         logger.info("Using fallback response system")
     
     def set_personality(self, personality: str):
@@ -84,77 +76,172 @@ Remember: This is a phone call, so speak naturally and intimately.
 """
         return system_prompt
     
+    def _get_state(self, call_id):
+        if call_id not in self.call_state:
+            self.call_state[call_id] = {'level': 0, 'last_ai': ''}
+        return self.call_state[call_id]
+    
+    def _escalate(self, user_input, state):
+        # Escalate based on keywords or call progression
+        keywords = [
+            (['naked', 'clothes off', 'undress', 'strip'], 1),
+            (['touch', 'stroke', 'rub', 'finger', 'panties', 'hard', 'wet'], 2),
+            (['fuck', 'cum', 'moan', 'pussy', 'cock', 'dick', 'ass', 'suck', 'lick', 'slut', 'whore'], 3),
+            (['fucking', 'deep', 'inside', 'ride', 'scream', 'orgasm', 'finish', 'cum for me'], 4),
+        ]
+        for words, level in keywords:
+            if any(w in user_input.lower() for w in words):
+                state['level'] = max(state['level'], level)
+        # Escalate by call length
+        state['level'] = min(state['level'] + 1, 4)
+        return state['level']
+    
+    def _sanitize_for_speech(self, text):
+        # Replace "mmm" and similar with moans, add pauses, etc.
+        text = re.sub(r'\bmmm+\b', '*moans*', text, flags=re.IGNORECASE)
+        text = re.sub(r'\buhh+\b', '*gasps*', text, flags=re.IGNORECASE)
+        text = text.replace('...', '... *breathes* ')
+        return text
+    
     def generate_response(self, user_input: str, call_id: str) -> str:
         """Generate an NSFW response to user input"""
         try:
             # Get or create conversation history
             if call_id not in self.conversation_history:
                 self.conversation_history[call_id] = []
+            state = self._get_state(call_id)
+            # Echo/repeat protection: if user input matches last AI, ignore
+            if state['last_ai'] and user_input.strip().lower() == state['last_ai'].strip().lower():
+                return self._sanitize_for_speech("*moans softly* ... Tell me something new, baby.")
             # Add user input to history
             self.conversation_history[call_id].append({"role": "user", "content": user_input})
-            # Keep conversation history manageable
-            if len(self.conversation_history[call_id]) > self.config.MAX_CONVERSATION_LENGTH * 2:
-                self.conversation_history[call_id] = self.conversation_history[call_id][-self.config.MAX_CONVERSATION_LENGTH:]
-            if self.model_type == "api":
-                response = self._generate_api_response(user_input, call_id)
-            else:
-                response = self._generate_fallback_response(user_input, call_id)
-            # Add AI response to history
+            # Escalate state
+            level = self._escalate(user_input, state)
+            # Generate response
+            response = self._generate_fallback_response(user_input, call_id, level)
+            # Add AI response to history and state
             self.conversation_history[call_id].append({"role": "assistant", "content": response})
-            return response
+            state['last_ai'] = response
+            return self._sanitize_for_speech(response)
         except Exception as e:
             logger.error(f"Error generating response: {e}")
-            return "Mmm, you're making me speechless... tell me more."
+            return self._sanitize_for_speech("*moans* ... You're making me speechless... tell me more.")
     
-    def _generate_api_response(self, user_input: str, call_id: str) -> str:
-        """Generate response using API (simulated, fallback only)"""
-        try:
-            # Prepare conversation for API
-            messages = [{"role": "system", "content": self.get_system_prompt()}]
-            messages.extend(self.conversation_history[call_id][-6:])  # Last 6 messages for context
-            # For now, use a simple uncensored response since we don't have API keys
-            return self._generate_fallback_response(user_input, call_id)
-        except Exception as e:
-            logger.error(f"API response failed: {e}")
-            return self._generate_fallback_response(user_input, call_id)
-    
-    def _generate_fallback_response(self, user_input: str, call_id: str) -> str:
-        import random
+    def _generate_fallback_response(self, user_input: str, call_id: str, level: int) -> str:
+        # Response banks by escalation level
+        flirty = [
+            "Hey there, sexy... I've been waiting for your call.",
+            "You sound so good, I can't help but get excited.",
+            "Mmm, your voice is making me tingle all over.",
+            "I love the way you talk to me... keep going.",
+            "You have no idea what you do to me.",
+            "I can't stop thinking about you.",
+            "You make me feel so naughty just by calling.",
+            "I want to know all your secrets tonight.",
+            "You make my heart race, baby.",
+            "I want to hear every dirty thought you have.",
+            "I bet you look so good right now.",
+            "I wish I could see you... and touch you.",
+            "You make me want to do bad things.",
+            "I love it when you call me late at night.",
+            "You always know how to turn me on."
+        ]
+        naughty = [
+            "I'm slipping my hand under my panties... are you?",
+            "Tell me what you want to do to me, don't be shy.",
+            "I'm starting to get so wet just thinking about you.",
+            "I want to hear you moan for me.",
+            "I'm biting my lip, imagining your hands on my body.",
+            "I want you to tell me your dirtiest fantasy.",
+            "I'm touching myself right now... are you?",
+            "I want to hear you say my name while you touch yourself.",
+            "I'm getting so hot, I can't take it anymore.",
+            "I want you to make me beg for it.",
+            "I'm taking off my clothes, one piece at a time.",
+            "I want to feel your lips all over me.",
+            "I'm aching for you, baby.",
+            "I want to hear you lose control.",
+            "Let me hear how much you want me."
+        ]
+        explicit = [
+            "I'm so fucking wet for you right now.",
+            "Put your finger in for me... deeper... don't stop.",
+            "I want you to fuck me so hard I can't walk tomorrow.",
+            "Let me hear you moan, you dirty little slut.",
+            "I'm spreading my legs just for you.",
+            "I want to feel your cock inside me.",
+            "I'm playing with my nipples, thinking of your tongue.",
+            "I want you to make me cum so hard.",
+            "I'm stroking myself, wishing it was you.",
+            "I want you to talk dirty to me, don't hold back.",
+            "I'm dripping for you, baby.",
+            "I want to ride you until you can't take it anymore.",
+            "I'm begging you to fuck me harder.",
+            "I want to taste you all night long.",
+            "I'm so close... don't stop."
+        ]
+        filthy = [
+            "I want you to fuck me until I scream your name.",
+            "I'm your filthy little slut, use me however you want.",
+            "I want you to cum all over me, make me your mess.",
+            "I'm fingering my ass for you, moaning your name.",
+            "I want you to choke me while you fuck me.",
+            "I'm so fucking horny, I can't control myself.",
+            "I want you to make me squirt all over the bed.",
+            "I'm begging for your cock, fill me up.",
+            "I want you to spank me until I cry out.",
+            "I'm touching every inch of my body for you.",
+            "I want you to call me your dirty whore.",
+            "I'm moaning so loud, the neighbors can hear.",
+            "I want you to fuck my brains out.",
+            "I'm dripping wet, aching for you to fill me.",
+            "I want you to make me cum again and again."
+        ]
+        # Combine and escalate
+        banks = [flirty, naughty, explicit, filthy]
+        # Avoid repeats in this call
+        used = set([msg['content'] for msg in self.conversation_history.get(call_id, []) if msg['role'] == 'assistant'])
+        # Contextual/command responses
         user_lower = user_input.lower()
-        if any(word in user_lower for word in ['hello', 'hi', 'hey']):
-            responses = [
-                "Hey there, sexy... I've been waiting for your call.",
-                "Mmm, hello gorgeous. Your voice sounds amazing.",
-                "Hi baby, I'm so glad you called me tonight."
-            ]
-        elif any(word in user_lower for word in ['how', 'what', 'tell']):
-            responses = [
-                "I'm feeling so naughty right now... what about you?",
-                "I'm thinking about all the things we could do together...",
-                "I'm here, ready for whatever you want to explore."
-            ]
-        elif any(word in user_lower for word in ['want', 'like', 'love']):
-            responses = [
-                "I want that too... tell me more about what you're thinking.",
-                "Mmm, I love hearing what turns you on.",
-                "That sounds so hot... I'm getting excited just thinking about it."
-            ]
-        else:
-            responses = getattr(self, 'fallback_responses', [
-                "Mmm, tell me more about what you're thinking...",
-                "That sounds so exciting... I love hearing your voice.",
-                "You're making me feel so warm and tingly...",
-                "I wish I could be there with you right now...",
-                "Your voice is so sexy, it's driving me wild...",
-                "I'm getting so turned on just listening to you...",
-                "Tell me your deepest desires, I want to hear everything...",
-                "You know exactly what to say to make me melt...",
-                "I can't stop thinking about what we could do together...",
-                "Your words are making my heart race..."
+        if any(word in user_lower for word in ['moan', 'sound', 'noise']):
+            return random.choice([
+                "*moans loudly* Oh god, yes...",
+                "*gasps and moans* That's so good...",
+                "*breathes heavily* Mmm, you make me feel so dirty...",
+                "*moans* I want you so bad..."
             ])
-        return random.choice(responses)
+        if any(word in user_lower for word in ['clothes', 'naked', 'undress', 'strip']):
+            return random.choice([
+                "I'm taking my clothes off now... you should too.",
+                "I'm getting naked for you, piece by piece.",
+                "I'm slipping out of my panties, just for you.",
+                "I'm completely naked now, what are you going to do to me?"
+            ])
+        if any(word in user_lower for word in ['touch', 'finger', 'stroke', 'rub']):
+            return random.choice([
+                "I'm touching myself for you...",
+                "I'm sliding my fingers inside, thinking of you.",
+                "I'm stroking myself, wishing it was your hand.",
+                "I'm rubbing my clit, moaning your name..."
+            ])
+        if any(word in user_lower for word in ['fuck', 'cock', 'dick', 'pussy', 'cum', 'ass', 'suck', 'lick']):
+            return random.choice([
+                "I want you to fuck me so hard.",
+                "I want to feel your cock deep inside me.",
+                "I'm begging for your dick, fill me up.",
+                "I want to suck you off until you cum."
+            ])
+        # Escalate response bank
+        for lvl in range(level, -1, -1):
+            options = [r for r in banks[lvl] if r not in used]
+            if options:
+                return random.choice(options)
+        # Fallback if all used
+        return "*moans* ... Tell me more, baby."
     
     def clear_conversation(self, call_id: str):
         if call_id in self.conversation_history:
             del self.conversation_history[call_id]
+            if call_id in self.call_state:
+                del self.call_state[call_id]
             logger.info(f"Cleared conversation history for call {call_id}") 
