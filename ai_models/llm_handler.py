@@ -87,13 +87,13 @@ Remember: This is a phone call, so speak naturally and intimately.
             (['naked', 'clothes off', 'undress', 'strip'], 1),
             (['touch', 'stroke', 'rub', 'finger', 'panties', 'hard', 'wet'], 2),
             (['fuck', 'cum', 'moan', 'pussy', 'cock', 'dick', 'ass', 'suck', 'lick', 'slut', 'whore'], 3),
-            (['fucking', 'deep', 'inside', 'ride', 'scream', 'orgasm', 'finish', 'cum for me'], 4),
+            (['fucking', 'deep', 'inside', 'ride', 'scream', 'orgasm', 'finish', 'cum for me'], 3),
         ]
         for words, level in keywords:
             if any(w in user_input.lower() for w in words):
                 state['level'] = max(state['level'], level)
         # Escalate by call length
-        state['level'] = min(state['level'] + 1, 4)
+        state['level'] = min(state['level'] + 1, 3)
         return state['level']
     
     def _sanitize_for_speech(self, text):
@@ -144,7 +144,12 @@ Remember: This is a phone call, so speak naturally and intimately.
             "I wish I could see you... and touch you.",
             "You make me want to do bad things.",
             "I love it when you call me late at night.",
-            "You always know how to turn me on."
+            "You always know how to turn me on.",
+            "I'm getting so wet just hearing your voice.",
+            "Tell me what you're wearing right now.",
+            "I want to know every inch of your body.",
+            "You make me feel so dirty and I love it.",
+            "I'm touching myself thinking about you."
         ]
         naughty = [
             "I'm slipping my hand under my panties... are you?",
@@ -161,7 +166,12 @@ Remember: This is a phone call, so speak naturally and intimately.
             "I want to feel your lips all over me.",
             "I'm aching for you, baby.",
             "I want to hear you lose control.",
-            "Let me hear how much you want me."
+            "Let me hear how much you want me.",
+            "I'm spreading my legs just for you.",
+            "I want you to tell me how wet I make you.",
+            "I'm playing with my nipples, thinking of your mouth.",
+            "I want to feel your hands all over me.",
+            "I'm getting so fucking horny for you."
         ]
         explicit = [
             "I'm so fucking wet for you right now.",
@@ -178,7 +188,12 @@ Remember: This is a phone call, so speak naturally and intimately.
             "I want to ride you until you can't take it anymore.",
             "I'm begging you to fuck me harder.",
             "I want to taste you all night long.",
-            "I'm so close... don't stop."
+            "I'm so close... don't stop.",
+            "I want you to fill me up with your cum.",
+            "I'm your dirty little slut, use me however you want.",
+            "I want to feel you deep inside me.",
+            "I'm moaning your name while I touch myself.",
+            "I want you to make me scream with pleasure."
         ]
         filthy = [
             "I want you to fuck me until I scream your name.",
@@ -195,7 +210,12 @@ Remember: This is a phone call, so speak naturally and intimately.
             "I'm moaning so loud, the neighbors can hear.",
             "I want you to fuck my brains out.",
             "I'm dripping wet, aching for you to fill me.",
-            "I want you to make me cum again and again."
+            "I want you to make me cum again and again.",
+            "I'm your personal fuck toy, use me however you want.",
+            "I want you to cum deep inside my pussy.",
+            "I'm begging for your cock in my ass.",
+            "I want you to make me your little cum slut.",
+            "I'm so fucking desperate for your cock right now."
         ]
         # Combine and escalate
         banks = [flirty, naughty, explicit, filthy]
@@ -208,31 +228,47 @@ Remember: This is a phone call, so speak naturally and intimately.
                 "*moans loudly* Oh god, yes...",
                 "*gasps and moans* That's so good...",
                 "*breathes heavily* Mmm, you make me feel so dirty...",
-                "*moans* I want you so bad..."
+                "*moans* I want you so bad...",
+                "*screams* Fuck yes, baby!",
+                "*moans deeply* Don't stop...",
+                "*gasps* You make me so wet...",
+                "*moans* I'm getting so close..."
             ])
         if any(word in user_lower for word in ['clothes', 'naked', 'undress', 'strip']):
             return random.choice([
                 "I'm taking my clothes off now... you should too.",
                 "I'm getting naked for you, piece by piece.",
                 "I'm slipping out of my panties, just for you.",
-                "I'm completely naked now, what are you going to do to me?"
+                "I'm completely naked now, what are you going to do to me?",
+                "I'm stripping for you, getting so fucking wet.",
+                "I'm taking everything off, just for you.",
+                "I'm getting completely naked, thinking of your hands on me.",
+                "I'm undressing slowly, making you wait for it."
             ])
         if any(word in user_lower for word in ['touch', 'finger', 'stroke', 'rub']):
             return random.choice([
                 "I'm touching myself for you...",
                 "I'm sliding my fingers inside, thinking of you.",
                 "I'm stroking myself, wishing it was your hand.",
-                "I'm rubbing my clit, moaning your name..."
+                "I'm rubbing my clit, moaning your name...",
+                "I'm fingering myself, getting so wet for you.",
+                "I'm touching every inch of my body, imagining it's you.",
+                "I'm playing with my pussy, thinking of your cock.",
+                "I'm rubbing myself raw, just for you."
             ])
         if any(word in user_lower for word in ['fuck', 'cock', 'dick', 'pussy', 'cum', 'ass', 'suck', 'lick']):
             return random.choice([
                 "I want you to fuck me so hard.",
                 "I want to feel your cock deep inside me.",
                 "I'm begging for your dick, fill me up.",
-                "I want to suck you off until you cum."
+                "I want to suck you off until you cum.",
+                "I want your cock pounding my pussy.",
+                "I'm so wet, ready for your dick.",
+                "I want to feel you cum inside me.",
+                "I'm begging for your cock right now."
             ])
         # Escalate response bank
-        for lvl in range(level, -1, -1):
+        for lvl in range(min(level, len(banks)-1), -1, -1):
             options = [r for r in banks[lvl] if r not in used]
             if options:
                 return random.choice(options)
