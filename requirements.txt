@@ -1,6 +1,5 @@
-flask==2.3.3
+﻿flask==2.3.3
 twilio==8.10.0
-# openai-whisper==20231117
 torch==2.7.0
 torchaudio==2.7.0
 transformers==4.35.0
