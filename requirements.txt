@@ -2,6 +2,7 @@
 flask==2.3.3
 twilio==8.10.0
 torch==2.7.0+cpu
+numpy
 requests==2.31.0
 python-dotenv==1.0.0
 elevenlabs==0.2.26
