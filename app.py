@@ -2,7 +2,7 @@ from flask import Flask, request, Response
 from config import Config
 from phone.twilio_handler import TwilioPhoneHandler
 from ai_models.llm_handler import NSFWLLMHandler
-from voice.tts_handler import VoiceHandler, ElevenLabsVoiceHandler
+from voice.tts_handler import ElevenLabsVoiceHandler
 from voice.stt_handler import SpeechToTextHandler
 import logging
 import os
@@ -15,11 +15,9 @@ twilio_handler = TwilioPhoneHandler()
 twilio_handler.initialize_twilio()
 llm_handler = NSFWLLMHandler()
 llm_handler.initialize_model()
-tts_handler = VoiceHandler()
-tts_handler.initialize_voice_engine()
+elevenlabs_handler = ElevenLabsVoiceHandler()
 stt_handler = SpeechToTextHandler()
 stt_handler.initialize_stt_engine()
-elevenlabs_handler = ElevenLabsVoiceHandler()
 
 @app.route('/voice/incoming', methods=['POST'])
 def voice_incoming():
@@ -39,13 +37,8 @@ def voice_process(call_sid):
         speech_result = ''
     # Generate AI response
     ai_response = llm_handler.generate_response(speech_result, call_sid)
-    # Synthesize voice
-    audio_bytes = None
-    if elevenlabs_handler.is_available():
-        audio_bytes = elevenlabs_handler.text_to_speech(ai_response)
-    if not audio_bytes:
-        audio_bytes = tts_handler.text_to_speech(ai_response)
-    # Save audio to a file or serve as a URL (for Twilio <Play>), but for now use <Say>
+    # Synthesize voice using ElevenLabs
+    audio_bytes = elevenlabs_handler.text_to_speech(ai_response)
     # For now, fallback to <Say> for demo
     response = twilio_handler.process_speech_input(call_sid, ai_response)
     return Response(str(response), mimetype='text/xml')
