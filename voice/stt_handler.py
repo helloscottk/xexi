@@ -3,7 +3,6 @@ import logging
 import tempfile
 import os
 from typing import Optional
-from pydub import AudioSegment
 import speech_recognition as sr
 from config import Config
 
@@ -32,54 +31,25 @@ class SpeechToTextHandler:
             self.recognizer = None
     
     def transcribe_audio(self, audio_data: bytes, audio_format: str = "wav") -> Optional[str]:
-        """Transcribe audio data to text using SpeechRecognition"""
+        """Transcribe audio data to text using SpeechRecognition (no preprocessing)"""
         try:
-            # Create temporary file for audio processing
+            # Save audio to a temporary file
             with tempfile.NamedTemporaryFile(suffix=f".{audio_format}", delete=False) as temp_file:
                 temp_file.write(audio_data)
                 temp_path = temp_file.name
             try:
-                # Process audio for better transcription
-                processed_audio_path = self._preprocess_audio(temp_path)
-                # Use SpeechRecognition
                 if self.recognizer:
-                    result = self._transcribe_with_sr(processed_audio_path)
+                    result = self._transcribe_with_sr(temp_path)
                     if result:
                         return result
                 logger.warning("All transcription methods failed")
                 return None
             finally:
-                # Clean up temporary files
-                for path in [temp_path, processed_audio_path]:
-                    if path and os.path.exists(path):
-                        os.unlink(path)
+                if temp_path and os.path.exists(temp_path):
+                    os.unlink(temp_path)
         except Exception as e:
             logger.error(f"Error in transcribe_audio: {e}")
             return None
-    
-    def _preprocess_audio(self, audio_path: str) -> str:
-        """Preprocess audio for better transcription"""
-        try:
-            # Load audio
-            audio = AudioSegment.from_file(audio_path)
-            # Convert to mono if stereo
-            if audio.channels > 1:
-                audio = audio.set_channels(1)
-            # Set sample rate to 16kHz (optional, for phone audio)
-            audio = audio.set_frame_rate(16000)
-            # Normalize audio levels
-            audio = audio.normalize()
-            # Apply noise reduction (simple high-pass filter)
-            audio = audio.high_pass_filter(80)
-            # Apply compression to even out volume levels
-            audio = audio.compress_dynamic_range(threshold=-20.0, ratio=4.0, attack=5.0, release=50.0)
-            # Create processed file
-            processed_path = audio_path.replace('.', '_processed.')
-            audio.export(processed_path, format="wav")
-            return processed_path
-        except Exception as e:
-            logger.error(f"Error preprocessing audio: {e}")
-            return audio_path  # Return original if preprocessing fails
     
     def _transcribe_with_sr(self, audio_path: str) -> Optional[str]:
         """Transcribe using SpeechRecognition library"""
@@ -124,33 +94,9 @@ class SpeechToTextHandler:
             return None
     
     def is_speech_detected(self, audio_data: bytes) -> bool:
-        """Detect if audio contains speech"""
-        try:
-            # Simple voice activity detection
-            audio = AudioSegment.from_file(io.BytesIO(audio_data))
-            # Check if audio is loud enough
-            if audio.dBFS < -40:  # Very quiet
-                return False
-            # Check duration
-            if len(audio) < 500:  # Less than 0.5 seconds
-                return False
-            return True
-        except Exception as e:
-            logger.error(f"Error in speech detection: {e}")
-            return True  # Assume speech if detection fails
+        """Stub: always return True for MVP"""
+        return True
     
     def enhance_audio_for_transcription(self, audio_data: bytes) -> bytes:
-        """Enhance audio quality for better transcription"""
-        try:
-            audio = AudioSegment.from_file(io.BytesIO(audio_data))
-            # Apply enhancements
-            audio = audio.normalize()
-            audio = audio.high_pass_filter(100)
-            audio = audio.low_pass_filter(8000)
-            # Export enhanced audio
-            output_buffer = io.BytesIO()
-            audio.export(output_buffer, format="wav")
-            return output_buffer.getvalue()
-        except Exception as e:
-            logger.error(f"Error enhancing audio: {e}")
-            return audio_data  # Return original if enhancement fails 
+        """Stub: return original audio for MVP"""
+        return audio_data 
