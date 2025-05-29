@@ -5,6 +5,7 @@ from ai_models.llm_handler import NSFWLLMHandler
 from voice.tts_handler import VoiceHandler, ElevenLabsVoiceHandler
 from voice.stt_handler import SpeechToTextHandler
 import logging
+import os
 
 app = Flask(__name__)
 config = Config()
@@ -58,4 +59,5 @@ def voice_end(call_sid):
     return Response(str(twilio_handler.end_call(call_sid)), mimetype='text/xml')
 
 if __name__ == '__main__':
-    app.run(host=config.FLASK_HOST, port=config.FLASK_PORT, debug=config.DEBUG) 
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=config.DEBUG) 
