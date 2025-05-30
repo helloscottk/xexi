@@ -13,7 +13,7 @@ class ElevenLabsVoiceHandler:
     def __init__(self, api_key: str = None):
         self.api_key = api_key or Config().ELEVENLABS_API_KEY
         self.base_url = "https://api.elevenlabs.io/v1"
-        self.voice_id = "21m00Tcm4TlvDq8ikWAM"  # Default female voice
+        self.voice_id = "21m00Tcm4TlvDq8ikWAM"  # Rachel voice
         
     def is_available(self) -> bool:
         """Check if ElevenLabs API key is available"""
@@ -37,7 +37,9 @@ class ElevenLabsVoiceHandler:
                 "model_id": "eleven_monolingual_v1",
                 "voice_settings": {
                     "stability": 0.5,
-                    "similarity_boost": 0.75
+                    "similarity_boost": 0.75,
+                    "style": 0.0,
+                    "use_speaker_boost": True
                 }
             }
             

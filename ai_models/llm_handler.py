@@ -109,23 +109,95 @@ Remember: This is a phone call, so speak naturally and intimately.
             # Get or create conversation history
             if call_id not in self.conversation_history:
                 self.conversation_history[call_id] = []
+            
             state = self._get_state(call_id)
-            # Echo/repeat protection: if user input matches last AI, ignore
+            
+            # Echo/repeat protection
             if state['last_ai'] and user_input.strip().lower() == state['last_ai'].strip().lower():
                 return self._sanitize_for_speech("*moans softly* ... Tell me something new, baby.")
+            
             # Add user input to history
             self.conversation_history[call_id].append({"role": "user", "content": user_input})
-            # Escalate state
+            
+            # Try to get response from actual LLM first
+            if self.config.OPENAI_API_KEY:
+                api_response = self._generate_api_response(user_input, call_id)
+                if api_response:
+                    # Add AI response to history and state
+                    self.conversation_history[call_id].append({"role": "assistant", "content": api_response})
+                    state['last_ai'] = api_response
+                    return self._sanitize_for_speech(api_response)
+            
+            # Fallback to predefined responses if API fails
             level = self._escalate(user_input, state)
-            # Generate response
             response = self._generate_fallback_response(user_input, call_id, level)
+            
             # Add AI response to history and state
             self.conversation_history[call_id].append({"role": "assistant", "content": response})
             state['last_ai'] = response
             return self._sanitize_for_speech(response)
+            
         except Exception as e:
             logger.error(f"Error generating response: {e}")
             return self._sanitize_for_speech("*moans* ... You're making me speechless... tell me more.")
+    
+    def _generate_api_response(self, user_input: str, call_id: str) -> Optional[str]:
+        """Generate response using actual LLM API"""
+        try:
+            # Get conversation history
+            history = self.conversation_history.get(call_id, [])
+            
+            # Build the prompt
+            system_prompt = self.get_system_prompt()
+            
+            # Format for the API
+            messages = [{"role": "system", "content": system_prompt}]
+            
+            # Add recent conversation history (last 6 messages to keep context manageable)
+            recent_history = history[-6:] if len(history) > 6 else history
+            messages.extend(recent_history)
+            
+            # Add current user input
+            messages.append({"role": "user", "content": user_input})
+            
+            # Call the API
+            headers = {
+                "Authorization": f"Bearer {self.config.OPENAI_API_KEY}",
+                "Content-Type": "application/json"
+            }
+            
+            payload = {
+                "model": "gpt-3.5-turbo",  # or "gpt-4" if you have access
+                "messages": messages,
+                "max_tokens": 100,  # Keep responses short for phone calls
+                "temperature": 0.9,  # Make it more creative/varied
+                "presence_penalty": 0.6,  # Reduce repetition
+                "frequency_penalty": 0.6   # Reduce repetition
+            }
+            
+            response = requests.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers=headers,
+                json=payload,
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                ai_response = result['choices'][0]['message']['content'].strip()
+                
+                # Keep it short for phone calls
+                if len(ai_response) > 200:
+                    ai_response = ai_response[:200] + "..."
+                
+                return ai_response
+            else:
+                logger.error(f"API call failed: {response.status_code} - {response.text}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error calling LLM API: {e}")
+            return None
     
     def _generate_fallback_response(self, user_input: str, call_id: str, level: int) -> str:
         # Response banks by escalation level
