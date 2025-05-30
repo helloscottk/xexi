@@ -16,6 +16,9 @@ class Config:
     
     # OpenAI API (optional - for GPT models)
     OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+
+    # Together.ai API (for alternative LLM models)
+    TOGETHER_API_KEY = os.getenv('TOGETHER_API_KEY') 
     
     # Server Configuration
     FLASK_PORT = int(os.getenv('FLASK_PORT', 5000))
