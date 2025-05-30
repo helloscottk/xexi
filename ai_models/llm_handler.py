@@ -36,15 +36,15 @@ class NSFWLLMHandler:
     
     def _load_mixtral(self):
         """Load Mixtral 8x7B model - API only"""
-            self.model_type = "api"
-            self.api_url = "https://api-inference.huggingface.co/models/mistralai/Mixtral-8x7B-Instruct-v0.1"
-            logger.info("Using Mixtral via Hugging Face API")
+        self.model_type = "api"
+        self.api_url = "https://api-inference.huggingface.co/models/mistralai/Mixtral-8x7B-Instruct-v0.1"
+        logger.info("Using Mixtral via Hugging Face API")
     
     def _load_llama3(self):
         """Load Llama3 70B model - API only"""
-            self.model_type = "api"
-            self.api_url = "https://api-inference.huggingface.co/models/meta-llama/Llama-2-70b-chat-hf"
-            logger.info("Using Llama3 via Hugging Face API")
+        self.model_type = "api"
+        self.api_url = "https://api-inference.huggingface.co/models/meta-llama/Llama-2-70b-chat-hf"
+        logger.info("Using Llama3 via Hugging Face API")
     
     def _load_fallback(self):
         """Fallback to a simple response system"""
