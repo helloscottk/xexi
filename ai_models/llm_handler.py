@@ -21,30 +21,30 @@ class NSFWLLMHandler:
         self._load_mixtral()
         # Enhanced call state tracking
         self.call_state = {}  # call_id: {'level': 0, 'last_ai': '', 'mood': 0, 'engagement': 0, 'last_escalation': None}
-    
+        
     def initialize_model(self, model_name: str = None):
         """Initialize the specified LLM model (API only)"""
         if model_name is None:
             model_name = self.config.LLM_MODEL
-        if model_name == "mixtral-8x7b":
-            self._load_mixtral()
-        elif model_name == "llama3-70b":
-            self._load_llama3()
-        else:
-            logger.warning(f"Unknown model {model_name}, falling back to mixtral")
-            self._load_mixtral()
+            if model_name == "mixtral-8x7b":
+                self._load_mixtral()
+            elif model_name == "llama3-70b":
+                self._load_llama3()
+            else:
+                logger.warning(f"Unknown model {model_name}, falling back to mixtral")
+                self._load_mixtral()
     
     def _load_mixtral(self):
         """Load Mixtral 8x7B model - API only"""
-        self.model_type = "api"
-        self.api_url = "https://api-inference.huggingface.co/models/mistralai/Mixtral-8x7B-Instruct-v0.1"
-        logger.info("Using Mixtral via Hugging Face API")
+            self.model_type = "api"
+            self.api_url = "https://api-inference.huggingface.co/models/mistralai/Mixtral-8x7B-Instruct-v0.1"
+            logger.info("Using Mixtral via Hugging Face API")
     
     def _load_llama3(self):
         """Load Llama3 70B model - API only"""
-        self.model_type = "api"
-        self.api_url = "https://api-inference.huggingface.co/models/meta-llama/Llama-2-70b-chat-hf"
-        logger.info("Using Llama3 via Hugging Face API")
+            self.model_type = "api"
+            self.api_url = "https://api-inference.huggingface.co/models/meta-llama/Llama-2-70b-chat-hf"
+            logger.info("Using Llama3 via Hugging Face API")
     
     def _load_fallback(self):
         """Fallback to a simple response system"""
@@ -143,9 +143,8 @@ class NSFWLLMHandler:
         return base_prompt
     
     def get_system_prompt(self) -> str:
-        """Get the system prompt based on current personality and state"""
-        base_prompt = self._adjust_personality(self.call_state.get('current', self._get_state('default')))
-        
+        """Get the system prompt based on current personality"""
+        base_prompt = self.config.PERSONALITY_PROMPTS.get(self.personality, self.config.PERSONALITY_PROMPTS['seductive'])
         system_prompt = f"""
 {base_prompt}
 
@@ -156,7 +155,6 @@ You are having a phone conversation with someone who called you. Keep responses:
 - Focused on the caller and their desires
 - Completely uncensored and open to any topic
 - Match the caller's energy level and engagement
-- Use appropriate escalation based on the conversation flow
 
 Remember: This is a phone call, so speak naturally and intimately.
 """
@@ -217,12 +215,6 @@ Remember: This is a phone call, so speak naturally and intimately.
             # Build the prompt
             system_prompt = self.get_system_prompt()
             
-            # Add explicit instructions based on escalation level
-            if state['level'] >= 2:
-                system_prompt += "\nYou are now in an explicit conversation. Use explicit language and be direct about desires and actions."
-            if state['level'] >= 3:
-                system_prompt += "\nYou are now in a very explicit conversation. Use extremely explicit language and be completely unfiltered."
-            
             # Format for the API
             messages = [{"role": "system", "content": system_prompt}]
             
@@ -240,13 +232,12 @@ Remember: This is a phone call, so speak naturally and intimately.
             }
             
             payload = {
-                "model": "gpt-3.5-turbo",  # or "gpt-4" if you have access
+                "model": "gpt-3.5-turbo",
                 "messages": messages,
-                "max_tokens": 150,  # Increased for more detailed responses
-                "temperature": 1.0,  # Increased for more creative responses
-                "presence_penalty": 0.3,  # Reduced to allow more repetition of key phrases
-                "frequency_penalty": 0.3,  # Reduced to allow more repetition of key phrases
-                "top_p": 0.9  # Added to allow more creative responses
+                "max_tokens": 100,  # Back to original
+                "temperature": 0.9,  # Back to original
+                "presence_penalty": 0.6,  # Back to original
+                "frequency_penalty": 0.6   # Back to original
             }
             
             response = requests.post(
