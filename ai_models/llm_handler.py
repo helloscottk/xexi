@@ -167,43 +167,113 @@ Remember: This is a phone call, so speak naturally and intimately.
         text = text.replace('...', '... *breathes* ')
         return text
     
+    def _generate_contextual_explicit_response(self, user_input: str, call_id: str) -> str:
+        user_lower = user_input.lower()
+        # Clothing/undressing
+        if any(phrase in user_lower for phrase in ['take off', 'remove', 'pants off', 'panties off', 'clothes off', 'strip', 'undress']):
+            return random.choice([
+                "Mmm, that makes me so wet... when you get down there, clean me up with your tongue.",
+                "Oh fuck yes, I'm already dripping for you... lick me clean when you're done undressing me.",
+                "I'm getting so fucking wet just thinking about it... use your mouth on me when you get there.",
+                "That's making my pussy so wet... I want to feel your tongue all over me."
+            ])
+        # Touching/physical contact
+        elif any(phrase in user_lower for phrase in ['touch you', 'feel you', 'hands on', 'grab you', 'squeeze']):
+            return random.choice([
+                "Touch me everywhere... I want your hands all over my body, especially between my legs.",
+                "Grab me harder... I love feeling your strong hands on my tits and ass.",
+                "Feel how wet you make me... slide your fingers inside while you touch me.",
+                "Squeeze my tits while you finger my pussy... I want to feel you everywhere."
+            ])
+        # Oral references
+        elif any(phrase in user_lower for phrase in ['lick', 'tongue', 'mouth', 'suck', 'taste', 'eat']):
+            return random.choice([
+                "I want your tongue deep inside me... lick my pussy until I cum all over your face.",
+                "Suck on my clit while you finger me... I want to cum in your mouth.",
+                "Taste how wet I am for you... eat my pussy like you're starving for it.",
+                "I want to feel your mouth everywhere... lick me from my tits down to my ass."
+            ])
+        # Anal/ass references
+        elif any(phrase in user_lower for phrase in ['anal', 'ass', 'asshole', 'ass fuck', 'fuck my ass', 'in my ass', 'spank', 'spanking', 'spank me']):
+            return random.choice([
+                "I want you to spank my ass until it's red, then slide your cock deep inside my tight asshole.",
+                "Spread my ass cheeks and fuck me hard... I want to feel you in my ass.",
+                "Lick my ass and then fuck it... make me your dirty anal slut.",
+                "Spank me while you fuck my ass... I want to feel your hand and your cock at the same time."
+            ])
+        # Penetration references
+        elif any(phrase in user_lower for phrase in ['inside', 'deep', 'penetrate', 'enter', 'slide in', 'push in']):
+            return random.choice([
+                "Push your cock deep inside my wet pussy... I want to feel every inch of you.",
+                "Slide it in slowly, then fuck me hard... I want you so deep inside me.",
+                "I'm so wet and ready for you... push deeper, I can take all of you.",
+                "Fill me up completely... I want your cock stretching my tight pussy."
+            ])
+        # Position/action requests
+        elif any(phrase in user_lower for phrase in ['bend over', 'on top', 'from behind', 'doggy', 'ride']):
+            return random.choice([
+                "I want to ride your cock until you can't take it anymore... watch my tits bounce while I fuck you.",
+                "Bend me over and fuck me from behind... pull my hair while you pound my pussy.",
+                "I want to be on top so I can control how deep you go... let me ride you hard.",
+                "Take me from behind like the dirty slut I am... spank my ass while you fuck me."
+            ])
+        # Intensity/roughness
+        elif any(phrase in user_lower for phrase in ['harder', 'rough', 'hard', 'fast', 'pound', 'slam']):
+            return random.choice([
+                "Fuck me harder... I want you to pound my pussy until I scream.",
+                "Be rough with me... I love it when you fuck me like a dirty whore.",
+                "Slam your cock into me... I want to feel you hitting my cervix.",
+                "Don't hold back... fuck me as hard as you can, I can take it."
+            ])
+        # Climax references
+        elif any(phrase in user_lower for phrase in ['cum', 'orgasm', 'climax', 'finish', 'come']):
+            return random.choice([
+                "I want to cum all over your cock... keep fucking me until I explode.",
+                "Make me cum so hard I can't think... I want to scream your name when I orgasm.",
+                "I'm going to cum all over you... don't stop, I'm so fucking close.",
+                "Cum inside my pussy... I want to feel you filling me up when you orgasm."
+            ])
+        # Fallback to general explicit responses
+        else:
+            return self._generate_fallback_response(user_input, call_id, 3)  # Use filthy level
+
     def generate_response(self, user_input: str, call_id: str) -> str:
-        """Generate an NSFW response to user input"""
-        try:
-            # Get or create conversation history
-            if call_id not in self.conversation_history:
-                self.conversation_history[call_id] = []
-            
-            state = self._get_state(call_id)
-            
-            # Echo/repeat protection
-            if state['last_ai'] and user_input.strip().lower() == state['last_ai'].strip().lower():
-                return self._sanitize_for_speech("*moans softly* ... Tell me something new, baby.")
-            
-            # Add user input to history
-            self.conversation_history[call_id].append({"role": "user", "content": user_input})
-            
-            # Try to get response from actual LLM first
+        state = self._get_state(call_id)
+        # Explicit trigger words
+        explicit_triggers = [
+            'fuck', 'cock', 'pussy', 'cum', 'ass', 'tits', 'dick', 'suck', 'lick', 
+            'wet', 'hard', 'horny', 'naked', 'strip', 'panties', 'bra', 'touch',
+            'feel', 'grab', 'squeeze', 'finger', 'tongue', 'mouth', 'taste',
+            'inside', 'deep', 'penetrate', 'ride', 'bend over', 'doggy', 'rough',
+            'anal', 'asshole', 'spank', 'spanking', 'ass fuck', 'fuck my ass', 'in my ass'
+        ]
+        # Check if user input contains explicit content
+        has_explicit = any(trigger in user_input.lower() for trigger in explicit_triggers)
+        if has_explicit:
+            # Enter explicit mode and use contextual responses
+            state['explicit_mode'] = True
+            state['explicit_cooldown'] = 3  # Stay explicit for 3 exchanges
+            response = self._generate_contextual_explicit_response(user_input, call_id)
+            state['last_ai'] = response
+            return self._sanitize_for_speech(response)
+        elif state.get('explicit_cooldown', 0) > 0:
+            # Stay in explicit mode for a few exchanges
+            state['explicit_cooldown'] -= 1
+            response = self._generate_contextual_explicit_response(user_input, call_id)
+            state['last_ai'] = response
+            return self._sanitize_for_speech(response)
+        else:
+            # Use OpenAI for normal conversation
+            state['explicit_mode'] = False
             if self.config.OPENAI_API_KEY:
                 api_response = self._generate_api_response(user_input, call_id)
                 if api_response:
-                    # Add AI response to history and state
-                    self.conversation_history[call_id].append({"role": "assistant", "content": api_response})
                     state['last_ai'] = api_response
                     return self._sanitize_for_speech(api_response)
-            
-            # Fallback to predefined responses if API fails
-            level = self._escalate(user_input, state)
-            response = self._generate_fallback_response(user_input, call_id, level)
-            
-            # Add AI response to history and state
-            self.conversation_history[call_id].append({"role": "assistant", "content": response})
+            # Fallback to mild responses
+            response = self._generate_fallback_response(user_input, call_id, 0)
             state['last_ai'] = response
             return self._sanitize_for_speech(response)
-            
-        except Exception as e:
-            logger.error(f"Error generating response: {e}")
-            return self._sanitize_for_speech("*moans* ... You're making me speechless... tell me more.")
     
     def _generate_api_response(self, user_input: str, call_id: str) -> Optional[str]:
         """Generate response using actual LLM API"""
