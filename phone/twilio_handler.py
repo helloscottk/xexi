@@ -288,9 +288,11 @@ class TwilioPhoneHandler:
     def create_ai_response(self, call_sid: str, user_speech: str, ai_response: str) -> VoiceResponse:
         """Create a Twilio VoiceResponse using a pre-generated AI response"""
         response = VoiceResponse()
+        
         # Log both user speech and AI response
         logger.info(f"User speech from {call_sid}: {user_speech}")
         logger.info(f"AI response for {call_sid}: {ai_response}")
+        
         # Store in call history
         if call_sid in self.active_calls:
             self.active_calls[call_sid]['conversation_history'].append({
@@ -301,7 +303,60 @@ class TwilioPhoneHandler:
                 'type': 'ai',
                 'content': ai_response
             })
-        # Create response with gather for next input
+        
+        # Try to use ElevenLabs for voice synthesis
+        from voice.tts_handler import ElevenLabsVoiceHandler
+        elevenlabs = ElevenLabsVoiceHandler()
+        
+        if elevenlabs.is_available():
+            try:
+                # Generate audio with ElevenLabs
+                audio_data = elevenlabs.text_to_speech(ai_response)
+                if audio_data:
+                    # Save audio to a temporary file
+                    import os
+                    import uuid
+                    import tempfile
+                    
+                    # Create audio directory if it doesn't exist
+                    audio_dir = os.path.join("static", "audio")
+                    os.makedirs(audio_dir, exist_ok=True)
+                    
+                    # Generate unique filename
+                    filename = f"audio_{call_sid}_{uuid.uuid4().hex[:8]}.mp3"
+                    filepath = os.path.join(audio_dir, filename)
+                    
+                    # Save the audio file
+                    with open(filepath, 'wb') as f:
+                        f.write(audio_data)
+                    
+                    # Get the public URL
+                    base_url = os.getenv('BASE_URL', 'https://thewinningticket.com')
+                    audio_url = f"{base_url}/static/audio/{filename}"
+                    
+                    # Create response with gather for next input
+                    gather = Gather(
+                        input='speech',
+                        action=f'/voice/process/{call_sid}',
+                        method='POST',
+                        speech_timeout='auto',
+                        language='en-US',
+                        enhanced=True
+                    )
+                    
+                    # Use Play instead of Say for the ElevenLabs audio
+                    gather.play(audio_url)
+                    response.append(gather)
+                    
+                    # Fallback
+                    response.play(audio_url)
+                    response.redirect(f'/voice/continue/{call_sid}')
+                    return response
+                    
+            except Exception as e:
+                logger.error(f"ElevenLabs synthesis failed: {e}")
+        
+        # Fallback to Twilio's voice if ElevenLabs fails
         gather = Gather(
             input='speech',
             action=f'/voice/process/{call_sid}',
@@ -312,6 +367,7 @@ class TwilioPhoneHandler:
         )
         gather.say(ai_response, voice='alice', language='en-US')
         response.append(gather)
+        
         # Fallback
         response.say("Are you still there? I want to keep talking with you...", voice='alice')
         response.redirect(f'/voice/continue/{call_sid}')

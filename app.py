@@ -1,4 +1,4 @@
-from flask import Flask, request, Response
+from flask import Flask, request, Response, send_from_directory
 from config import Config
 from phone.twilio_handler import TwilioPhoneHandler
 from ai_models.llm_handler import NSFWLLMHandler
@@ -18,6 +18,13 @@ llm_handler.initialize_model()
 elevenlabs_handler = ElevenLabsVoiceHandler()
 stt_handler = SpeechToTextHandler()
 stt_handler.initialize_stt_engine()
+
+# Create static/audio directory if it doesn't exist
+os.makedirs(os.path.join("static", "audio"), exist_ok=True)
+
+@app.route('/static/audio/<filename>')
+def serve_audio(filename):
+    return send_from_directory('static/audio', filename)
 
 @app.route('/voice/incoming', methods=['POST'])
 def voice_incoming():
