@@ -5,6 +5,7 @@ from typing import List, Dict, Optional
 from config import Config
 import random
 import re
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -18,8 +19,8 @@ class NSFWLLMHandler:
         self.conversation_history = {}
         self.personality = self.config.DEFAULT_PERSONALITY
         self._load_mixtral()
-        # Track escalation state and last AI response for each call
-        self.call_state = {}  # call_id: {'level': 0, 'last_ai': ''}
+        # Enhanced call state tracking
+        self.call_state = {}  # call_id: {'level': 0, 'last_ai': '', 'mood': 0, 'engagement': 0, 'last_escalation': None}
     
     def initialize_model(self, model_name: str = None):
         """Initialize the specified LLM model (API only)"""
@@ -58,10 +59,93 @@ class NSFWLLMHandler:
         else:
             logger.warning(f"Unknown personality: {personality}")
     
-    def get_system_prompt(self) -> str:
-        """Get the system prompt based on current personality"""
+    def _get_state(self, call_id):
+        if call_id not in self.call_state:
+            self.call_state[call_id] = {
+                'level': 0,
+                'last_ai': '',
+                'mood': 0,  # -1 to 1 (negative = shy, positive = confident)
+                'engagement': 0,  # 0 to 1 (how engaged the user is)
+                'last_escalation': None,
+                'escalation_cooldown': 0
+            }
+        return self.call_state[call_id]
+    
+    def _escalate(self, user_input, state):
+        # Enhanced escalation triggers with more aggressive progression
+        triggers = {
+            'flirty': [
+                ['hello', 'hi', 'hey', 'how are you', 'what\'s up'],
+                ['beautiful', 'sexy', 'hot', 'gorgeous'],
+                ['talk', 'chat', 'conversation']
+            ],
+            'naughty': [
+                ['touch', 'stroke', 'rub', 'finger', 'panties', 'hard', 'wet'],
+                ['kiss', 'lick', 'suck', 'taste'],
+                ['clothes', 'naked', 'undress', 'strip']
+            ],
+            'explicit': [
+                ['fuck', 'cum', 'moan', 'pussy', 'cock', 'dick', 'ass'],
+                ['suck', 'lick', 'slut', 'whore'],
+                ['want', 'need', 'please', 'beg']
+            ],
+            'filthy': [
+                ['fucking', 'deep', 'inside', 'ride', 'scream', 'orgasm'],
+                ['finish', 'cum for me', 'make me cum'],
+                ['harder', 'faster', 'more', 'again']
+            ]
+        }
+        
+        # Check for escalation triggers
+        user_lower = user_input.lower()
+        for level, keyword_groups in enumerate(triggers.values()):
+            for group in keyword_groups:
+                if any(word in user_lower for word in group):
+                    # More aggressive escalation
+                    if state['escalation_cooldown'] <= 0:
+                        state['level'] = max(state['level'], level)
+                        state['last_escalation'] = time.time()
+                        state['escalation_cooldown'] = 2  # Reduced cooldown
+                        state['mood'] = min(1, state['mood'] + 0.3)  # Increased mood boost
+                        return state['level']
+        
+        # More aggressive natural progression
+        if len(self.conversation_history.get(call_id, [])) > 3:  # Reduced from 5
+            state['engagement'] = min(1, state['engagement'] + 0.2)  # Increased engagement boost
+            if state['engagement'] > 0.5 and state['escalation_cooldown'] <= 0:  # Reduced threshold
+                state['level'] = min(3, state['level'] + 1)
+                state['escalation_cooldown'] = 3  # Reduced cooldown
+                state['mood'] = min(1, state['mood'] + 0.2)
+        
+        # Decrease cooldown more quickly
+        if state['escalation_cooldown'] > 0:
+            state['escalation_cooldown'] -= 1
+        
+        return state['level']
+    
+    def _adjust_personality(self, state):
+        """Adjust personality based on mood and engagement"""
         base_prompt = self.config.PERSONALITY_PROMPTS.get(self.personality, 
                                                          self.config.PERSONALITY_PROMPTS['seductive'])
+        
+        # Add mood modifiers
+        if state['mood'] > 0.5:
+            base_prompt += "\nYou're feeling confident and dominant. Take charge of the conversation."
+        elif state['mood'] < -0.5:
+            base_prompt += "\nYou're feeling shy and submissive. Let the caller take the lead."
+        
+        # Add engagement modifiers
+        if state['engagement'] > 0.7:
+            base_prompt += "\nThe caller is very engaged. Be more direct and explicit."
+        elif state['engagement'] < 0.3:
+            base_prompt += "\nThe caller seems hesitant. Be more gentle and encouraging."
+        
+        return base_prompt
+    
+    def get_system_prompt(self) -> str:
+        """Get the system prompt based on current personality and state"""
+        base_prompt = self._adjust_personality(self.call_state.get('current', self._get_state('default')))
+        
         system_prompt = f"""
 {base_prompt}
 
@@ -71,30 +155,12 @@ You are having a phone conversation with someone who called you. Keep responses:
 - Under 50 words (phone conversations are quick back-and-forth)
 - Focused on the caller and their desires
 - Completely uncensored and open to any topic
+- Match the caller's energy level and engagement
+- Use appropriate escalation based on the conversation flow
 
 Remember: This is a phone call, so speak naturally and intimately.
 """
         return system_prompt
-    
-    def _get_state(self, call_id):
-        if call_id not in self.call_state:
-            self.call_state[call_id] = {'level': 0, 'last_ai': ''}
-        return self.call_state[call_id]
-    
-    def _escalate(self, user_input, state):
-        # Escalate based on keywords or call progression
-        keywords = [
-            (['naked', 'clothes off', 'undress', 'strip'], 1),
-            (['touch', 'stroke', 'rub', 'finger', 'panties', 'hard', 'wet'], 2),
-            (['fuck', 'cum', 'moan', 'pussy', 'cock', 'dick', 'ass', 'suck', 'lick', 'slut', 'whore'], 3),
-            (['fucking', 'deep', 'inside', 'ride', 'scream', 'orgasm', 'finish', 'cum for me'], 3),
-        ]
-        for words, level in keywords:
-            if any(w in user_input.lower() for w in words):
-                state['level'] = max(state['level'], level)
-        # Escalate by call length
-        state['level'] = min(state['level'] + 1, 3)
-        return state['level']
     
     def _sanitize_for_speech(self, text):
         # Replace "mmm" and similar with moans, add pauses, etc.
@@ -146,9 +212,16 @@ Remember: This is a phone call, so speak naturally and intimately.
         try:
             # Get conversation history
             history = self.conversation_history.get(call_id, [])
+            state = self._get_state(call_id)
             
             # Build the prompt
             system_prompt = self.get_system_prompt()
+            
+            # Add explicit instructions based on escalation level
+            if state['level'] >= 2:
+                system_prompt += "\nYou are now in an explicit conversation. Use explicit language and be direct about desires and actions."
+            if state['level'] >= 3:
+                system_prompt += "\nYou are now in a very explicit conversation. Use extremely explicit language and be completely unfiltered."
             
             # Format for the API
             messages = [{"role": "system", "content": system_prompt}]
@@ -169,10 +242,11 @@ Remember: This is a phone call, so speak naturally and intimately.
             payload = {
                 "model": "gpt-3.5-turbo",  # or "gpt-4" if you have access
                 "messages": messages,
-                "max_tokens": 100,  # Keep responses short for phone calls
-                "temperature": 0.9,  # Make it more creative/varied
-                "presence_penalty": 0.6,  # Reduce repetition
-                "frequency_penalty": 0.6   # Reduce repetition
+                "max_tokens": 150,  # Increased for more detailed responses
+                "temperature": 1.0,  # Increased for more creative responses
+                "presence_penalty": 0.3,  # Reduced to allow more repetition of key phrases
+                "frequency_penalty": 0.3,  # Reduced to allow more repetition of key phrases
+                "top_p": 0.9  # Added to allow more creative responses
             }
             
             response = requests.post(
@@ -186,7 +260,7 @@ Remember: This is a phone call, so speak naturally and intimately.
                 result = response.json()
                 ai_response = result['choices'][0]['message']['content'].strip()
                 
-                # Keep it short for phone calls
+                # Keep it short for phone calls but not too short
                 if len(ai_response) > 200:
                     ai_response = ai_response[:200] + "..."
                 
